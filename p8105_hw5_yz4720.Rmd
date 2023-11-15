@@ -91,3 +91,51 @@ test_results %>%
 ```
 
 Chicago has the highest proportion of unsolved homicides among all the cities. 
+
+
+# Problem 2
+### Import study data 
+
+```{r message=FALSE, warning=FALSE}
+files_df = tibble(
+    filename = list.files("./data/problem2/"),
+    path = str_c("./data/problem2/", filename)) |>
+  mutate(data = map(path, read_csv)) |>
+  unnest()
+files_df
+```
+
+### Tidy study data 
+
+```{r}
+files_tidy_df = files_df|>
+  janitor::clean_names() |>
+  separate(filename, into = c("group", "subject_id"), sep = "_") |>
+  mutate(
+    group = case_match(group, 
+                     "con" ~ "control", 
+                     "exp" ~ "experiment"),
+    subject_id = str_replace(subject_id, ".csv", ""))|>
+  pivot_longer(week_1:week_8, 
+               names_to = "week",
+               names_prefix = "week_",
+               values_to = "observation") |>
+  select(group, subject_id, week, observation)
+files_tidy_df
+```
+
+### Plot: observation over time 
+
+```{r}
+files_tidy_df|>
+  ggplot(aes(x = week, y = observation, group = subject_id, color = subject_id)) +
+  geom_point()+
+  geom_line() +
+  facet_grid(.~group) +
+  labs(x = "weeks", y = "observations",
+       title = "Observations on each subject over time") 
+```
+
+In the control group, observations remain relatively stable over the 8-week time period. In the experiment group, observations increase over time for all 10 subjects over the 8-week time period. The value of observation is higher at 8-week for experiment group compared to control group. 
+
+
