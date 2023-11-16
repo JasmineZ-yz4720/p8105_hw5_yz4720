@@ -9,6 +9,7 @@ output: github_document
 library(tidyverse)
 library(p8105.datasets)
 library(viridis)
+set.seed(1)
 
 knitr::opts_chunk$set(
 	echo = TRUE,
@@ -132,10 +133,82 @@ files_tidy_df|>
   geom_point()+
   geom_line() +
   facet_grid(.~group) +
-  labs(x = "weeks", y = "observations",
-       title = "Observations on each subject over time") 
+  labs(title = "Observations on each subject over time", 
+       x = "weeks", y = "observations") 
 ```
 
 In the control group, observations remain relatively stable over the 8-week time period. In the experiment group, observations increase over time for all 10 subjects over the 8-week time period. The value of observation is higher at 8-week for experiment group compared to control group. 
 
+# Problem 3
+### Dataset: X ~ N(0, 5)
 
+```{r}
+simulation = function(n=30, mu, sd=5){
+  x = rnorm(n, mean=mu, sd)
+  test_result = t.test(x)|>
+  broom::tidy() |>
+  select(estimate, p.value)
+}
+
+sim_mu0 = rerun(5000, simulation(mu = 0)) |> 
+  bind_rows() |> 
+  select(estimate, p.value)
+```
+
+### Dataset: X ~ N(mu, 5), mu = {1, 2, 3, 4, 5 ,6}
+
+```{r}
+sim_mu = tibble(mu = c(0, 1, 2, 3, 4, 5, 6)) |> 
+  mutate(
+    output_list = map(.x = mu, ~ rerun(5000, simulation(mu = .x, sd=5))),
+    estimate_df = map(output_list, bind_rows))|>  
+  unnest(estimate_df) |> 
+  select(-output_list)
+```
+
+### Plot: True value vs. power of the test
+
+```{r}
+value_power = sim_mu |>
+  group_by(mu) |>
+  summarize(reject = sum(p.value < 0.05)/5000) |>
+  ggplot(aes(x = mu, y = reject)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Effect size and power", x = "True value of mean", y = "Power of the test") 
+value_power
+```
+
+As the true value of mu increases, the proportion of times the null was rejected also increases. Thus, there is a positive relationship between effect size and power. 
+
+### Plot: Estimate vs. True Value
+
+```{r}
+estimate_mean= sim_mu |> 
+  group_by(mu) |> 
+  mutate(avg_mean = mean(estimate)) |> 
+  ggplot(aes(x = mu, y = avg_mean ))+
+  geom_point() +
+  geom_line() +
+  labs(title = "Average Estimate vs. True Value of Mean", x = "True value of mean", y = "Average estimate of mean") 
+estimate_mean
+```
+
+The plot shows that average estimate of the mean roughly equals to the true value of mean.
+
+### Plot: Estimate (null rejected) vs. True Value
+
+```{r}
+null_reject =  sim_mu |> 
+  filter(p.value < 0.05) |> 
+  group_by(mu) |> 
+  mutate(avg_mean = mean(estimate)) |> 
+  ggplot(aes(x = mu, y = avg_mean ))+
+  geom_point()+
+  geom_line() +
+  labs(title = "Average Estimate vs. True Value of Mean among Null Rejected Samples",
+    x = "True value of mean", y = "Average estimate of mean") 
+null_reject
+```
+
+The sample average of estimate of mean across tests for which the null is rejected approximately equal to the true value of mean when the true value of mean is greater or equal to 4. This corresponds to the relationship found between effect size and power of the test. As the effect size increases, any statistically significant difference can be easier to be found, hence increasing the power of the test.
